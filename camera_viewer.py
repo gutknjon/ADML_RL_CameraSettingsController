@@ -1,23 +1,7 @@
 import cv2
 from argparse import ArgumentParser
 from dataclasses import dataclass
-
-def select_camera():
-    # get available cameras
-    cameras = []
-    for i in range(10):
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            cameras.append(i)
-            cap.release()
-
-    if len(cameras) == 0:
-        print('No camera found')
-        return None
-    else:
-        print('Available cameras:', cameras)
-        camera = int(input('Select camera: '))
-        return camera
+import logging
 
 class CameraProperties:
 
@@ -32,7 +16,6 @@ class CameraProperties:
         def trackbar_to_value(self, trackbar_val):
             # map trackbar value from [0, 255] to [min_val, max_val]
             return self.min_val + (self.max_val - self.min_val) * trackbar_val / 255
-            return 
         
         def value_to_trackbar(self, value = None):
             # map value from [min_val, max_val] to [0, 255]
@@ -49,8 +32,10 @@ class CameraProperties:
         self.properties = []
         for prop_name, prop_id in property.items():
             min_val, max_val, def_val = self.infer_property_range(cap, prop_id, -255, 255)
-            print(f'{prop_name}: {def_val} (min: {min_val}, max: {max_val})')
             self.properties.append(self.Property(prop_id, prop_name, min_val, max_val, def_val))
+
+    def __str__(self):
+        return '\n'.join([str(prop) for prop in self.properties])
 
     @staticmethod
     def get_camera_properties(cap):
@@ -98,79 +83,151 @@ class CameraProperties:
 
         return min_supported, max_supported, current_val
 
-def main(args):
+class CameraViewer:
 
-    try:
+    def __init__(self, camera_idx=None):
+        # initialize logger
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info('Initializing CameraViewer')
+
         # select camera
-        cam_idx = args.camera
-        if args.camera is None:
-            cam_idx = select_camera()
-            if cam_idx is None:
-                return
-
+        self.camera_idx = self.select_camera(camera_idx)
+        self.logger.info(f'Selected camera {self.camera_idx}')
+        
         # open camera
-        def nothing(x):
-            pass
+        self.cap = cv2.VideoCapture(self.camera_idx)
+        if not self.cap.isOpened():
+            self.logger.error(f'Failed to open camera {self.camera_idx}')
+            raise Exception(f'Failed to open camera {self.camera_idx}')
+        
+        # get camera properties
+        self.properties = CameraProperties(self.cap)
+        self.logger.info(f'Camera properties: \r\n{self.properties}')
 
-        # Initiate SIFT detector
-        sift = cv2.SIFT_create()
+        # create sift object
+        self.sift = cv2.SIFT_create()
 
-        # Open the camera
-        # get available cameras
-        cap = cv2.VideoCapture(cam_idx)
-        if not cap.isOpened():
-            raise Exception(f'Failed to open camera {cam_idx}')
+        pass
 
+    def __del__(self):
+        if hasattr(self, 'cap') and self.cap is not None:
+            self.cap.release()
+        cv2.destroyAllWindows()
+        self.logger.info('Destroying CameraViewer')
+        pass
+
+    def get_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.logger.error('Failed to get frame')
+            return None
+        kp, _ = self.sift.detectAndCompute(frame, None)
+        return frame, kp
+    
+    def set_settings(self, settings):
+        for prop in self.properties.properties:
+            value = settings.get(prop.name, None)
+            if value is not None:
+                self.cap.set(prop.prop_id, value)
+                cv2.setTrackbarPos(prop.name, 'Camera Viewer', prop.value_to_trackbar(value))
+        return
+    
+    def get_settings(self):
+        settings = {}
+        for prop in self.properties.properties:
+            value = prop.trackbar_to_value(cv2.getTrackbarPos(prop.name, 'Camera Viewer'))
+            settings[prop.name] = value
+        return settings
+    
+    def show_frame(self, frame, features):
+        if frame is None:
+            return
+        frame = cv2.drawKeypoints(frame, features, None)
+        cv2.putText(frame, f'Number of features: {len(features)}', (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_4)
+        cv2.imshow('Camera Viewer', frame)
+        return
+    
+    def create_window(self):
         # Create a window
         cv2.namedWindow('Camera Viewer')
-
-        # disable autoexposure
-        # cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, -255)
-
-        # get camera properties
-        properties = CameraProperties(cap)
-
-        # add trackbars
-        for prop in properties.properties:
+        def nothing(x):
+            pass
+        for prop in self.properties.properties:
             cv2.createTrackbar(prop.name, 'Camera Viewer', prop.value_to_trackbar() , 255, nothing)
+        return
+    
+    def run(self, agent=None):
+
+        # Create a window
+        self.create_window()
 
         while True:
-            # Capture frame-by-frame
-            ret, frame = cap.read()
-            if not ret:
-                break
+            
+            # get and plot frame with features
+            frame, features = self.get_frame()
+            self.show_frame(frame, features)
 
-            # update properties
-            for prop in properties.properties:
-                value = prop.trackbar_to_value(cv2.getTrackbarPos(prop.name, 'Camera Viewer'))
-                if not cap.set(prop.prop_id, value):
-                    print(f'Failed to set {prop.name} to {value}')
-
-            # calculate sift features
-            kp, _ = sift.detectAndCompute(frame, None)
-            frame = cv2.drawKeypoints(frame, kp, None)
-
-            # get the quality of each feature
-            N = len(kp)
-
-            # Display the number of features
-            cv2.putText(frame, f'Number of features: {N}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_4)
-
-            # Display the resulting frame
-            cv2.imshow('Camera Viewer', frame)
+            # update camera settings
+            if agent is not None:
+                # TODO: Implement agent
+                settings = self.get_settings()
+                pass
+            else:
+                settings = self.get_settings()
+            self.set_settings(settings)
 
             # Break the loop on 'q' key press
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+        pass
+
+    def select_camera(self, camera_idx=None):
+        # select camera index
+        if camera_idx is None:
+            cameras = self.scan_cameras()
+            if len(cameras) == 0:
+                self.logger.error('No camera found')
+                raise Exception('No camera found')
+            
+            # let user select camera
+            while True:
+                print('Available cameras:', cameras)
+                camera_idx = int(input('Select camera: '))
+                if camera_idx in cameras:
+                    break
+                print('Invalid camera index')
+        else:
+            cap = cv2.VideoCapture(camera_idx)
+            if not cap.isOpened():
+                self.logger.error(f'Failed to open camera {camera_idx}')
+                raise Exception(f'Failed to open camera {camera_idx}')
+        return camera_idx
+
+    @staticmethod
+    def scan_cameras(idx_range=10):
+        # get available cameras
+        cameras = []
+        for i in range(idx_range):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                cameras.append(i)
+                cap.release()
+        return cameras
+
+def main(args):
+    try:
+        viewer = CameraViewer(args.camera)
+        viewer.run()
+
     except Exception as e:
         print(e)
 
     finally:
-        # When everything is done, release the capture
-        cap.release()
-        cv2.destroyAllWindows()
-    
-    return
+        del viewer
+        print('Exit')
+
+    pass
 
 if __name__ == '__main__':
 

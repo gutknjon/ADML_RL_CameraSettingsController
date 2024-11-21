@@ -9,28 +9,29 @@ def main(args):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger("Main")
 
-    try:
-        viewer = CameraViewer(args.camera)
-        q_agent = Agent()
-
-        if args.train:
-            logger.info('Train agent start')
-            q_agent.learn()
-            logger.info('Train agent end')
-
-        if args.run:
-            logger.info('Run agent start')
-            viewer.run(q_agent)
-            logger.info('Run agent end')
+    # try:
+    viewer = CameraViewer(args.camera)
+    q_agent = Agent(viewer)
 
 
-    except Exception as e:
-        logger.error(e)
-        print(e)
+    if args.train:
+        logger.info('Train agent start')
+        q_agent.learn(10)
+        logger.info('Train agent end')
 
-    finally:
-        del viewer, q_agent
-        logger.info('Exit')
+    if args.run:
+        logger.info('Run agent start')
+        viewer.run(q_agent)
+        logger.info('Run agent end')
+
+
+    # except Exception as e:
+    #     logger.error(e)
+    #     print(e)
+
+    # finally:
+    del viewer, q_agent
+    logger.info('Exit')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Camera Viewer')

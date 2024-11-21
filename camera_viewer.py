@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from dataclasses import dataclass
 import logging
 
-class CameraProperties:
+class Camera:
 
     @dataclass
     class Property:
@@ -13,82 +13,22 @@ class CameraProperties:
         max_val: float
         def_val: float
 
-        def trackbar_to_value(self, trackbar_val):
-            # map trackbar value from [0, 255] to [min_val, max_val]
-            return self.min_val + (self.max_val - self.min_val) * trackbar_val / 255
+        def normalized_to_value(self, trackbar_val):
+            '''Map normalized value from [0, 1] to [min_val, max_val]'''
+            return self.min_val + (self.max_val - self.min_val) * trackbar_val
         
-        def value_to_trackbar(self, value = None):
-            # map value from [min_val, max_val] to [0, 255]
+        def value_to_normalized(self, value = None):
+            '''Map value from [min_val, max_val] to [0, 1]'''
             if value is None:
                 value = self.def_val
-            return int(255 * (value - self.min_val) / (self.max_val - self.min_val))
+            return (value - self.min_val) / (self.max_val - self.min_val)
 
         def __str__(self):
             return f'{self.name}: {self.def_val} (min: {self.min_val}, max: {self.max_val})'
 
-    def __init__(self, cap):
-        self.cap = cap
-        property = self.get_camera_properties(cap)
-        self.properties = []
-        for prop_name, prop_id in property.items():
-            min_val, max_val, def_val = self.infer_property_range(cap, prop_id, -255, 255)
-            self.properties.append(self.Property(prop_id, prop_name, min_val, max_val, def_val))
-
-    def __str__(self):
-        return '\n'.join([str(prop) for prop in self.properties])
-
-    @staticmethod
-    def get_camera_properties(cap):
-        camera_properties = {
-            "CAP_PROP_BRIGHTNESS": cv2.CAP_PROP_BRIGHTNESS,
-            "CAP_PROP_CONTRAST": cv2.CAP_PROP_CONTRAST,
-            # "CAP_PROP_SATURATION": cv2.CAP_PROP_SATURATION,
-            # "CAP_PROP_GAIN": cv2.CAP_PROP_GAIN,
-            "CAP_PROP_EXPOSURE": cv2.CAP_PROP_EXPOSURE,
-            # "CAP_PROP_AUTOFOCUS": cv2.CAP_PROP_AUTOFOCUS,
-            # "CAP_PROP_AUTO_EXPOSURE": cv2.CAP_PROP_AUTO_EXPOSURE,
-        }
-
-        # get properties
-        properties = {}
-        for prop_name, prop_id in camera_properties.items():
-            prop_id = getattr(cv2, prop_name, None)
-            if prop_id is not None:
-                value = cap.get(prop_id)
-                if value is not None and value != -1:
-                    properties[prop_name] = prop_id
-
-        return properties
-
-    @staticmethod
-    def infer_property_range(cap, prop_id, min_val=-100, max_val=100, step=1):
-        # Find minimum
-        current_val = cap.get(prop_id)
-        min_supported = max_supported = current_val
-
-        # Decrease until it stops changing
-        for val in range(int(current_val), min_val-1, -step):
-            if not cap.set(prop_id, val):
-                break
-            min_supported = val
-
-        # Increase until it stops changing
-        for val in range(int(current_val), max_val+1, step):
-            if not cap.set(prop_id, val):
-                break
-            max_supported = val
-
-        # Reset to initial value
-        cap.set(prop_id, current_val)
-
-        return min_supported, max_supported, current_val
-
-class CameraViewer:
-
     def __init__(self, camera_idx=None):
-        # initialize logger
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.info('Initializing CameraViewer')
+        self.logger.info('Initializing Camera')
 
         # select camera
         self.camera_idx = self.select_camera(camera_idx)
@@ -99,22 +39,105 @@ class CameraViewer:
         if not self.cap.isOpened():
             self.logger.error(f'Failed to open camera {self.camera_idx}')
             raise Exception(f'Failed to open camera {self.camera_idx}')
-        
+
         # get camera properties
-        self.properties = CameraProperties(self.cap)
-        self.logger.info(f'Camera properties: \r\n{self.properties}')
+        self.properties = self.get_camera_properties(self.cap)
+        self.logger.info(f'Camera properties: \r\n{self}')
 
         # create sift object
         self.sift = cv2.SIFT_create()
 
-        pass
-
     def __del__(self):
         if hasattr(self, 'cap') and self.cap is not None:
             self.cap.release()
-        cv2.destroyAllWindows()
-        self.logger.info('Destroying CameraViewer')
+        self.logger.info('Destroying Camera')
         pass
+
+    def __str__(self):
+        return '\n'.join([str(prop) for prop in self.properties])
+
+    @staticmethod
+    def get_camera_properties(cap):
+        '''Get camera properties
+        
+        Args:
+            cap: cv2.VideoCapture object
+        
+        Returns:
+            list: List of Property objects
+        '''
+        camera_properties = {
+            "CAP_PROP_BRIGHTNESS": cv2.CAP_PROP_BRIGHTNESS,
+            "CAP_PROP_CONTRAST": cv2.CAP_PROP_CONTRAST,
+            "CAP_PROP_SATURATION": cv2.CAP_PROP_SATURATION,
+            # "CAP_PROP_GAIN": cv2.CAP_PROP_GAIN,
+            "CAP_PROP_EXPOSURE": cv2.CAP_PROP_EXPOSURE,
+            # "CAP_PROP_AUTOFOCUS": cv2.CAP_PROP_AUTOFOCUS,
+            # "CAP_PROP_AUTO_EXPOSURE": cv2.CAP_PROP_AUTO_EXPOSURE,
+        }
+
+        def infer_property_range(cap, prop_id, min_val=-100, max_val=100, step=1):
+            # Find minimum
+            current_val = cap.get(prop_id)
+            min_supported = max_supported = current_val
+
+            # Decrease until it stops changing
+            for val in range(int(current_val), min_val-1, -step):
+                if not cap.set(prop_id, val):
+                    break
+                min_supported = val
+
+            # Increase until it stops changing
+            for val in range(int(current_val), max_val+1, step):
+                if not cap.set(prop_id, val):
+                    break
+                max_supported = val
+
+            # Reset to initial value
+            cap.set(prop_id, current_val)
+
+            return min_supported, max_supported, current_val
+
+        # get properties
+        properties = []
+        for prop_name, prop_id in camera_properties.items():
+            prop_id = getattr(cv2, prop_name, None)
+            if prop_id is not None:
+                value = cap.get(prop_id)
+                if value is not None and value != -1:
+                    min_val, max_val, def_val = infer_property_range(cap, prop_id, -255, 255)
+                    properties.append(Camera.Property(prop_id, prop_name, min_val, max_val, def_val))
+
+        return properties
+
+    def get_settings(self):
+        '''Get camera settings
+        
+        Returns:
+            values (list): List of camera settings values normalized to [0, 1]
+            names (list): List of camera settings names
+        '''
+        names = [prop.name for prop in self.properties]
+        values = [prop.value_to_normalized(self.cap.get(prop.prop_id)) for prop in self.properties]
+        return values, names
+
+    def set_settings(self, values):
+        '''Set camera settings
+        
+        Args:
+            values (list): List of camera settings values normalized to [0, 1]
+        '''
+        for prop, value in zip(self.properties, values):
+            self.cap.set(prop.prop_id, prop.normalized_to_value(value))
+        return
+
+    def get_valid_actions(self):
+        '''Get valid actions
+        
+        Returns:
+            list: List of valid actions
+        '''
+        return [(0, 1)]*len(self.properties)
 
     def get_frame(self):
         ret, frame = self.cap.read()
@@ -123,69 +146,33 @@ class CameraViewer:
             return None
         kp, _ = self.sift.detectAndCompute(frame, None)
         return frame, kp
-    
-    def set_settings(self, settings):
-        for prop in self.properties.properties:
-            value = settings.get(prop.name, None)
-            if value is not None:
-                self.cap.set(prop.prop_id, value)
-                cv2.setTrackbarPos(prop.name, 'Camera Viewer', prop.value_to_trackbar(value))
-        return
-    
-    def get_settings(self):
-        settings = {}
-        for prop in self.properties.properties:
-            value = prop.trackbar_to_value(cv2.getTrackbarPos(prop.name, 'Camera Viewer'))
-            settings[prop.name] = value
-        return settings
-    
-    def show_frame(self, frame, features):
-        if frame is None:
-            return
-        frame = cv2.drawKeypoints(frame, features, None)
-        cv2.putText(frame, f'Number of features: {len(features)}', (10, 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_4)
-        cv2.imshow('Camera Viewer', frame)
-        return
-    
-    def create_window(self):
-        # Create a window
-        cv2.namedWindow('Camera Viewer')
-        def nothing(x):
-            pass
-        for prop in self.properties.properties:
-            cv2.createTrackbar(prop.name, 'Camera Viewer', prop.value_to_trackbar() , 255, nothing)
-        return
-    
-    def run(self, agent=None):
-
-        # Create a window
-        self.create_window()
-
-        while True:
-            
-            # get and plot frame with features
-            frame, features = self.get_frame()
-            self.show_frame(frame, features)
-
-            # update camera settings
-            if agent is not None:
-                # TODO: Implement agent
-                settings = self.get_settings()
-                pass
-            else:
-                settings = self.get_settings()
-            self.set_settings(settings)
-
-            # Break the loop on 'q' key press
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        pass
 
     def select_camera(self, camera_idx=None):
+        ''' Select camera
+
+        Checks if a given camera index is available, 
+        otherwise prompts the user to select one out of available cameras.
+
+        Args:
+            camera_idx (int): Camera index
+        
+        Returns:
+            int: Selected camera index
+        '''
+
+        def scan_cameras(idx_range=10):
+            # get available cameras
+            cameras = []
+            for i in range(idx_range):
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    cameras.append(i)
+                    cap.release()
+            return cameras
+
         # select camera index
         if camera_idx is None:
-            cameras = self.scan_cameras()
+            cameras = scan_cameras()
             if len(cameras) == 0:
                 self.logger.error('No camera found')
                 raise Exception('No camera found')
@@ -204,18 +191,161 @@ class CameraViewer:
                 raise Exception(f'Failed to open camera {camera_idx}')
         return camera_idx
 
-    @staticmethod
-    def scan_cameras(idx_range=10):
-        # get available cameras
-        cameras = []
-        for i in range(idx_range):
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                cameras.append(i)
-                cap.release()
-        return cameras
+class UserInterface:
+    window_name = 'Camera Viewer'
+
+    def __init__(self, settings, names, render=True):
+        '''Initialize UserInterface
+        
+        Creates a window with trackbars for each property
+        
+        Args:
+            settings (list): List of user settings values normalized to [0, 1]
+            names (list): List of user settings names
+        '''
+        # setup logger
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info('Initializing UserInterface')
+
+        # create window
+        self.render = render
+        self.properties = names
+        if self.render:
+            self.create_window(settings, names)
+
+        pass
+
+    def __del__(self):
+        cv2.destroyAllWindows()
+        self.logger.info('Destroying UserInterface')
+        pass
+    
+    def create_window(self, settings, names):
+        '''Create a window'''
+
+        cv2.namedWindow(self.window_name)
+        def nothing(x):
+            pass
+        for n, v in zip(names, settings):
+            assert 0 <= v <= 1, f'Invalid value {v} for property {n}'
+            cv2.createTrackbar(n, self.window_name, int(round(v*255)) , 255, nothing)
+        return
+    
+    def show_frame(self, frame, features):
+        '''Show frame with features
+        
+        Args:
+            frame (np.array): Frame to show
+            features (list): List of features to draw
+        
+        Returns:
+            None
+        '''
+        if not self.render:
+            return
+        if frame is None:
+            return
+        frame = cv2.drawKeypoints(frame, features, None)
+        cv2.putText(frame, f'Number of features: {len(features)}', (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_4)
+        cv2.imshow(self.window_name, frame)
+        return
+
+    def get_settings(self):
+        '''Get user settings
+
+        Args:
+            None
+        Returns:
+            values (list): List of user settings values normalized to [0, 1]
+            names (list): List of user settings names
+        '''
+        if not self.render:
+            return [], []
+        
+        values = [cv2.getTrackbarPos(prop, self.window_name)/255 for prop in self.properties]
+        return values, self.properties
+    
+    def set_settings(self, settings):
+        '''Set user settings
+
+        Args:
+            settings (list): List of user settings values normalized to [0, 1]
+        Returns:
+            None
+        '''
+        if not self.render:
+            return
+        for prop, value in zip(self.properties, settings):
+            cv2.setTrackbarPos(prop, self.window_name, int(round(value*255)))
+        return
+
+class CameraViewer:
+
+    def __init__(self, camera_idx=None, render=True):
+        # initialize logger
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info('Initializing CameraViewer')
+
+        # create camera object
+        self.cam = Camera(camera_idx)
+
+        # create user interface
+        settings, names = self.cam.get_settings()
+        self.ui = UserInterface(settings, names, render)
+
+        pass
+
+    def __del__(self):
+        # check if cam exists and is not none
+        if hasattr(self, 'cam') and self.cam is not None:
+            del self.cam
+        # check if ui exists and is not none
+        if hasattr(self, 'ui') and self.ui is not None:
+            del self.ui
+        self.logger.info('Destroying CameraViewer')
+        pass
+
+    def run(self, agent=None):
+        '''Run camera viewer
+
+        This function runs an infinite loop to get frames from the camera, and display them.
+        The camera settings are updated by the agent, if provided, otherwise by the user interface.
+
+        Args:
+            agent (Agent): Agent object to control camera settings
+        Returns:
+            None
+        '''
+        while True:
+            
+            # get and plot frame with features
+            frame, features = self.cam.get_frame()
+            self.ui.show_frame(frame, features)
+
+            # update camera settings
+            if agent is not None:
+                # settings = agent._get_action(frame)
+                # self.ui.set_settings(settings)
+                if self.ui is None:
+                    raise Exception('User interface and agent are not set')
+                settings, _ = self.ui.get_settings()
+            else:
+                if self.ui is None:
+                    raise Exception('User interface and agent are not set')
+                settings, _ = self.ui.get_settings()
+
+            self.cam.set_settings(settings)
+
+            # Break the loop on 'q' key press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        pass
 
 def main(args):
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger("Main")
+
     try:
         viewer = CameraViewer(args.camera)
         viewer.run()

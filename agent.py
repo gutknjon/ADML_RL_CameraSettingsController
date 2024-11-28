@@ -1,53 +1,83 @@
 import random
-from q import Q
+from dqn import DeepQNetworkModel
 from camera_viewer import CameraViewer
+from memory_buffers import ReplayMemory
 import cv2
+import torch
 import logging
+from abc import abstractmethod
 
-class Agent:
+class BaseAgent:
+    """
+    Base class for all player types
+    """
+    name = None
+    player_id = None
+
     def __init__(self, camera_viewer: CameraViewer):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info('Initializing Agent')
 
-        self.eps = 1.0
-        self.qlearner = Q()
-
         self.cam_viewer = camera_viewer
+        pass
+
+    def shutdown(self):
+        pass
+
+    def add_to_memory(self, **kwargs):
+        pass
+
+    def save(self, filename):
+        pass
+
+    @abstractmethod
+    def select_settings(self, **kwargs):
+        pass
+
+    @abstractmethod
+    def learn(self, **kwargs):
+        pass
+
+
+class HumanAgent(BaseAgent):
+    """ Human Agent """
+    def __init__(self, camera_viewer: CameraViewer):
+        super().__init__(camera_viewer)
+        self.name = self.__class__.__name__
+
+    def select_settings(self, **kwargs):
+        settings, _ = self.cam_viewer.ui.get_settings()
+        return settings
+
+    def learn(self, **kwargs):
+        pass
+
+
+class QAgent(BaseAgent):
+    """ QAgent """
+    def __init__(self, camera_viewer: CameraViewer, memory_size=1000, **kwargs):
+        super().__init__(camera_viewer)
+        self.name = self.__class__.__name__
+
         self.valid_actions = self.cam_viewer.cam.get_valid_actions()
+        frame, _ = self.cam_viewer.cam.get_frame()
 
-    def _get_action(self, state):
-        return [random.randint(min_val, max_val) for min_val, max_val in self.valid_actions]
-        if random.random() < self.eps:
-            # select uniform random value within valid_actions of type [(min, max), ...]
-            return [random.randint(min_val, max_val) for min_val, max_val, _ in self.valid_actions]
-        best = self.qlearner.get_best_action(state)
-        if best is None:
-            return [random.randint(min_val, max_val) for min_val, max_val, _ in self.valid_actions]
-        return best
+        self.eps = 0.5
+        self.dqn = DeepQNetworkModel(frame.shape, len(self.valid_actions), ReplayMemory(memory_size))
 
-    def _learn_one_sequence(self, m=100):
+    def select_settings(self, frame, **kwargs):
+        return self.dqn.act(frame, self.eps)
 
-        self.logger.debug(f'Learning one sequence with {m} frames')
-        state, features = self.cam_viewer.cam.get_frame()
-        self.cam_viewer.ui.show_frame(state, features)
-        for _ in range(m):
-            action = self._get_action(state)
-            self.cam_viewer.cam.set_settings(action)
-            self.cam_viewer.ui.set_settings(action)
+    def learn(self, **kwargs):
+        return self.dqn.learn(learning_rate=kwargs['learning_rate'])
 
-            # if action != self.cam_viewer.cam.get_settings()[0]:
-            #     self.logger.error(f'Action not set correctly: {action} != {self.cam_viewer.cam.get_settings()[0]}')
-            state, features = self.cam_viewer.cam.get_frame()
-            self.cam_viewer.ui.show_frame(state, features)
+    def add_to_memory(self, state, action, next_state, reward):
+        self.dqn.memory.push(state, action, next_state, reward)
 
-            # Break the loop on 'q' key press
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            # self.qlearner.update(state, action, state, features)
+    def save(self, filename):
+        self.dqn.save(filename)
+        return 
 
-    def learn(self, n=200000):
-        self.logger.info(f'Learning for {n} sequences')
-        for _ in range(n):
-            self._learn_one_sequence(10)
-            self.eps -= 0.0001
-        self.logger.info('Learning end')
+    def restore(self, filename):
+        self.dqn.restore(filename)
+        return

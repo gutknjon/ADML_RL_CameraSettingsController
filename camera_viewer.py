@@ -325,15 +325,12 @@ class CameraViewer:
 
             # update camera settings
             if agent is not None:
-                # settings = agent._get_action(frame)
-                # self.ui.set_settings(settings)
-                if self.ui is None:
-                    raise Exception('User interface and agent are not set')
+                settings = agent.select_settings(frame = frame)
+                self.ui.set_settings(settings)
+            elif self.ui is not None:
                 settings, _ = self.ui.get_settings()
             else:
-                if self.ui is None:
-                    raise Exception('User interface and agent are not set')
-                settings, _ = self.ui.get_settings()
+                raise Exception('User interface and agent are not set')
 
             self.cam.set_settings(settings)
 
@@ -344,7 +341,6 @@ class CameraViewer:
 
 def main(args):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    logger = logging.getLogger("Main")
 
     try:
         viewer = CameraViewer(args.camera)

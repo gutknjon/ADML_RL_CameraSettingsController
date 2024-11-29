@@ -57,7 +57,7 @@ class DeepQNetworkModel:
             self.policy_net.model.eval()
             x = torch.tensor(state).float().unsqueeze(0).permute(0, 3, 1, 2)
             action = self.policy_net.model(x)
-            action = action.detach().numpy().squeeze()
+            action = action[0].detach().numpy()
             logging.debug("Predicted action is %s [Epsilon = %s]",
                           action, eps)
 

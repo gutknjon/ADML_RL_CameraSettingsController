@@ -55,7 +55,7 @@ class HumanAgent(BaseAgent):
 
 class QAgent(BaseAgent):
     """ QAgent """
-    def __init__(self, camera_viewer: CameraViewer, agent_config, **kwargs):
+    def __init__(self, camera_viewer: CameraViewer, **kwargs):
         super().__init__(camera_viewer)
         self.name = self.__class__.__name__
 
@@ -65,18 +65,21 @@ class QAgent(BaseAgent):
 
         self.dqn = DeepQNetworkModel(input_size = frame.shape, 
                                      output_size = len(self.valid_actions), 
-                                     learning_rate=agent_config['learning_rate'],
-                                     gamma=agent_config['gamma'],
-                                     memory = ReplayMemory(agent_config['memory_size']))
+                                     learning_rate=kwargs['agent_config']['learning_rate'],
+                                     gamma=kwargs['agent_config']['gamma'],
+                                     memory = ReplayMemory(kwargs['agent_config']['memory_size']))
 
-    def select_settings(self, frame, **kwargs):
-        return self.dqn.act(frame, epsilon = kwargs['epsilon'])
+    def select_settings(self, **kwargs):
+        return self.dqn.act(state = kwargs['state'], epsilon = kwargs['epsilon'])
 
     def learn(self, **kwargs):
         return self.dqn.learn(batch_size=kwargs['batch_size'])
 
-    def add_to_memory(self, state, action, next_state, reward):
-        self.dqn.add_to_memory(state, action, next_state, reward)
+    def add_to_memory(self, **kwargs):
+        self.dqn.add_to_memory( state = kwargs['state'], 
+                                action = kwargs['action'],
+                                next_state = kwargs['next_state'],
+                                reward = kwargs['reward'])
 
     def save(self, filename):
         os.makedirs(os.path.dirname(filename), exist_ok=True)

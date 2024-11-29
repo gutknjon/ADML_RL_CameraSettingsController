@@ -7,13 +7,36 @@ from tqdm import tqdm
 import numpy as np
 import cv2
 import os
-import git
+import subprocess
 from datetime import datetime
 
 import matplotlib.pyplot as plt
 
 from config import load_config, save_config
 
+
+def get_short_sha(repo_path="."):
+    """
+    Get the short SHA of the latest commit in a Git repository.
+
+    Args:
+        repo_path (str): Path to the Git repository (default is the current directory).
+    
+    Returns:
+        str: The short SHA of the latest commit.
+    """
+    try:
+        # Run the `git rev-parse --short HEAD` command
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=repo_path,  # Specify the repository path
+            text=True       # Decode the output to a string
+        ).strip()
+        return sha
+    except subprocess.CalledProcessError as e:
+        # Handle errors (e.g., not a git repository)
+        print(f"Error: {e}")
+        return None
 
 class LearningVisualizer:
     def __init__(self, action_names):
@@ -102,6 +125,7 @@ class LearningVisualizer:
         Parameters:
         path (str): Path to save the plot to.
         """
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         self.fig.savefig(path)
 
 def train(viewer: CameraViewer, config:dict):
@@ -109,7 +133,16 @@ def train(viewer: CameraViewer, config:dict):
     """
     logging.info(f'Training start using {config["training"]["num_episodes"]} episodes and {config["training"]["num_steps"]} steps per episode')
 
-    agent = QAgent(viewer, config['agent'])
+    # create agent
+    if config['agent']['type'] == 'HumanAgent':
+        agent = HumanAgent(viewer)
+    elif config['agent']['type'] == 'QAgent':
+        agent = QAgent(viewer, agent_config = config['agent'])
+        
+        if config['agent']['checkpoint'] is not None:
+            agent.restore(config['agent']['checkpoint'])
+    else:
+        raise ValueError(f'Unknown agent type {config["agent"]["type"]}')
 
     # create learning visualizer
     _, parameters = viewer.cam.get_settings()
@@ -123,25 +156,24 @@ def train(viewer: CameraViewer, config:dict):
         for i_sequence in tqdm(range(int(config['training']['num_steps'])), desc='Sequence', unit='steps', position=1):
 
             # epsilon decay
-            # eps =   config['training']['epsilon_end'] + \
-            #         (config['training']['epsilon_start'] - config['training']['epsilon_end']) * \
-            #         np.exp(-1. * i_steps / config['training']['epsilon_decay'])
-            
             eps = max(config['training']['epsilon_end'], config['training']['epsilon_start'] * (config['training']['epsilon_decay'] ** i_episode))
 
             # select action and update UI
-            action = agent.select_settings(state, epsilon=eps)
+            action = agent.select_settings(state = state, epsilon=eps)
             viewer.cam.set_settings(action)
             viewer.ui.set_settings(action)
 
             # observe the next state and update UI
-            for i in range(10):
+            tmp = []
+            for i in range(5):
                 next_state, next_features = viewer.cam.get_frame()
+                tmp.append(len(next_features))
+            logging.info(f"Nr. Features: mean={np.mean(tmp):.2f}, std={np.std(tmp):.2f}, min={np.min(tmp)}, max={np.max(tmp)}")
             viewer.ui.show_frame(next_state, next_features)
 
             # update memory
             reward = len(next_features) - len(features)
-            agent.add_to_memory(state, action, next_state, reward)
+            agent.add_to_memory(state = state, action = action, next_state = next_state, reward = reward)
 
             # optimize the model
             agent.learn(batch_size = config["training"]["batch_size"])
@@ -157,11 +189,20 @@ def train(viewer: CameraViewer, config:dict):
         visualizer.update(action, len(features), eps)
         logging.info(f'Episode {i_episode} completed')
 
+        # save checkpoint
         if i_episode % config['training']['chkpt_interval'] == 0 and i_episode > 0 and config['_log_dir'] is not None:
             name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_chkpt_{i_episode}.pth")
             logging.info(f'Saving checkpoint to {name}')
             agent.save(name)
             visualizer.save(name.replace('.pth', '.png'))
+
+    logging.info('Training completed')
+
+    # save final checkpoint
+    name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_final.pth")
+    logging.info(f'Saving checkpoint to {name}')
+    agent.save(name)
+    visualizer.save(name.replace('.pth', '.png'))
 
 def run(viewer: CameraViewer, agent_config:dict):
     """ Run the agent 
@@ -170,7 +211,7 @@ def run(viewer: CameraViewer, agent_config:dict):
     if agent_config['type'] == 'HumanAgent':
         agent = HumanAgent(viewer)
     elif agent_config['type'] == 'QAgent':
-        agent = QAgent(viewer, config['agent'])
+        agent = QAgent(viewer, agent_config = config['agent'])
         
         if agent_config['checkpoint'] is not None:
             agent.restore(agent_config['checkpoint'])
@@ -198,9 +239,7 @@ def main(args, config):
     config["_log_dir"] = log_dir
 
     # log git commit short hash
-    repo = git.Repo(search_parent_directories=True)
-    commit = repo.head.object.hexsha
-    logging.info(f'Training repository commit: {commit}')
+    logging.info(f'Training repository commit: {get_short_sha()}')
 
     # try:
     viewer = CameraViewer(config['environment'])

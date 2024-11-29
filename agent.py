@@ -70,7 +70,11 @@ class QAgent(BaseAgent):
                                      memory = ReplayMemory(kwargs['agent_config']['memory_size']))
 
     def select_settings(self, **kwargs):
-        return self.dqn.act(state = kwargs['state'], epsilon = kwargs['epsilon'])
+        if "epsilon" in kwargs:
+            eps = kwargs['epsilon']
+        else:
+            eps = 0.0
+        return self.dqn.act(state = kwargs['state'], epsilon = eps)
 
     def learn(self, **kwargs):
         return self.dqn.learn(batch_size=kwargs['batch_size'])

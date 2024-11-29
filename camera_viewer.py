@@ -318,7 +318,7 @@ class CameraViewer:
 
             # update camera settings
             if agent is not None:
-                settings = agent.select_settings(frame = frame)
+                settings = agent.select_settings(state = frame)
                 self.ui.set_settings(settings)
             elif self.ui is not None:
                 settings, _ = self.ui.get_settings()

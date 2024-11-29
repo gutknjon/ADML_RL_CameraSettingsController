@@ -2,6 +2,7 @@ import cv2
 from argparse import ArgumentParser
 from dataclasses import dataclass
 import logging
+from config import load_config
 
 class Camera:
 
@@ -26,7 +27,7 @@ class Camera:
         def __str__(self):
             return f'{self.name}: {self.def_val} (min: {self.min_val}, max: {self.max_val})'
 
-    def __init__(self, camera_idx=None):
+    def __init__(self, camera_idx=None, parameters=[]):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info('Initializing Camera')
 
@@ -41,7 +42,7 @@ class Camera:
             raise Exception(f'Failed to open camera {self.camera_idx}')
 
         # get camera properties
-        self.properties = self.get_camera_properties(self.cap)
+        self.properties = self.get_camera_properties(self.cap, parameters)
         self.logger.info(f'Camera properties: \r\n{self}')
 
         # create sift object
@@ -57,24 +58,16 @@ class Camera:
         return '\n'.join([str(prop) for prop in self.properties])
 
     @staticmethod
-    def get_camera_properties(cap):
+    def get_camera_properties(cap, parameters):
         '''Get camera properties
         
         Args:
             cap: cv2.VideoCapture object
+            parameters (list): List of camera parameters
         
         Returns:
             list: List of Property objects
         '''
-        camera_properties = {
-            "CAP_PROP_BRIGHTNESS": cv2.CAP_PROP_BRIGHTNESS,
-            "CAP_PROP_CONTRAST": cv2.CAP_PROP_CONTRAST,
-            "CAP_PROP_SATURATION": cv2.CAP_PROP_SATURATION,
-            # "CAP_PROP_GAIN": cv2.CAP_PROP_GAIN,
-            "CAP_PROP_EXPOSURE": cv2.CAP_PROP_EXPOSURE,
-            # "CAP_PROP_AUTOFOCUS": cv2.CAP_PROP_AUTOFOCUS,
-            # "CAP_PROP_AUTO_EXPOSURE": cv2.CAP_PROP_AUTO_EXPOSURE,
-        }
 
         def infer_property_range(cap, prop_id, min_val=-100, max_val=100, step=1):
             # Find minimum
@@ -100,7 +93,7 @@ class Camera:
 
         # get properties
         properties = []
-        for prop_name, prop_id in camera_properties.items():
+        for prop_name in parameters:
             prop_id = getattr(cv2, prop_name, None)
             if prop_id is not None:
                 value = cap.get(prop_id)
@@ -282,17 +275,17 @@ class UserInterface:
 
 class CameraViewer:
 
-    def __init__(self, camera_idx=None, render=True):
+    def __init__(self, config: dict):
         # initialize logger
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info('Initializing CameraViewer')
 
         # create camera object
-        self.cam = Camera(camera_idx)
+        self.cam = Camera(config['camera'], config['parameters'])
 
         # create user interface
         settings, names = self.cam.get_settings()
-        self.ui = UserInterface(settings, names, render)
+        self.ui = UserInterface(settings, names, config['render'])
 
         pass
 
@@ -339,11 +332,11 @@ class CameraViewer:
                 break
         pass
 
-def main(args):
+def main(args, config):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     try:
-        viewer = CameraViewer(args.camera)
+        viewer = CameraViewer(config['environment'])
         viewer.run()
 
     except Exception as e:
@@ -359,10 +352,13 @@ if __name__ == '__main__':
 
     # parse arguments
     parser = ArgumentParser()
-    parser.add_argument('--camera', type=int, default=0, help='Camera index')
+    parser.add_argument('-c', '--config', type=str, help='Config file')
     args = parser.parse_args()
 
+    # load config
+    config = load_config(args.config)
+
     # run main
-    main(args)
+    main(args, config)
 
     pass

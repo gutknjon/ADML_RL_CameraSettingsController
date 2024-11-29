@@ -4,78 +4,212 @@ from time import time
 import logging
 import argparse
 from tqdm import tqdm
+import numpy as np
 import cv2
+import os
+import git
+from datetime import datetime
 
-BATCH_SIZE = 150
-BATCHES_TO_QTARGET_SWITCH = 1000
-GAMMA = 0.95
-TAU = 1
-MEMORY_SIZE = 100000
-LEARNING_RATE = 0.0001
+import matplotlib.pyplot as plt
 
-def train(viewer: CameraViewer, num_of_sequences=1e6, savedir='./models'):
+from config import load_config, save_config
+
+
+class LearningVisualizer:
+    def __init__(self, action_names):
+        """
+        Initializes the LearningVisualizer class.
+
+        Parameters:
+        action_names (list): List of action names to track.
+        """
+        self.action_names = action_names
+        self.num_actions = len(action_names)
+
+        # Data storage
+        self.action_data = [[] for _ in range(self.num_actions)]
+        self.reward_data = []
+        self.epsilon_data = []
+
+        # Create the figure and axes
+        self.fig, (self.ax_actions, self.ax_rewards, self.ax_epsilon) = plt.subplots(3, 1, figsize=(10, 8))
+
+        # Setup action plot
+        self.action_lines = [self.ax_actions.plot([], [], label=name)[0] for name in action_names]
+        self.ax_actions.set_title("Action Parameters")
+        self.ax_actions.set_ylabel("Values")
+        self.ax_actions.legend()
+
+        # Setup reward plot
+        self.reward_line, = self.ax_rewards.plot([], [], label="Reward", color="orange")
+        self.ax_rewards.set_title("Reward")
+        self.ax_rewards.set_ylabel("Reward")
+
+        # Setup epsilon plot
+        self.epsilon_line, = self.ax_epsilon.plot([], [], label="Epsilon", color="green")
+        self.ax_epsilon.set_title("Epsilon")
+        self.ax_epsilon.set_xlabel("Steps")
+        self.ax_epsilon.set_ylabel("Epsilon")
+
+        # Adjust layout
+        plt.tight_layout()
+
+    def update(self, actions, reward, epsilon):
+        """
+        Updates the plots with new action parameters, reward, and epsilon.
+
+        Parameters:
+        actions (np.array): Array of action parameter values.
+        reward (float): Reward value.
+        epsilon (float): Epsilon value.
+        """
+        # Update data
+        for i in range(self.num_actions):
+            self.action_data[i].append(actions[i])
+        self.reward_data.append(reward)
+        self.epsilon_data.append(epsilon)
+
+        # Update action plots
+        for i, line in enumerate(self.action_lines):
+            line.set_xdata(range(len(self.action_data[i])))
+            line.set_ydata(self.action_data[i])
+            self.ax_actions.relim()
+            self.ax_actions.autoscale_view()
+
+        # Update reward plot
+        self.reward_line.set_xdata(range(len(self.reward_data)))
+        self.reward_line.set_ydata(self.reward_data)
+        self.ax_rewards.relim()
+        self.ax_rewards.autoscale_view()
+
+        # Update epsilon plot
+        self.epsilon_line.set_xdata(range(len(self.epsilon_data)))
+        self.epsilon_line.set_ydata(self.epsilon_data)
+        self.ax_epsilon.relim()
+        self.ax_epsilon.autoscale_view()
+
+        # Redraw the figure
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+        # Pause to allow for smooth plotting
+        plt.pause(0.001)
+
+    def save(self, path):
+        """
+        Saves the current plot to a file.
+
+        Parameters:
+        path (str): Path to save the plot to.
+        """
+        self.fig.savefig(path)
+
+def train(viewer: CameraViewer, config:dict):
     """ Train the agent 
     """
-    logging.info('Train agent start')
+    logging.info(f'Training start using {config["training"]["num_episodes"]} episodes and {config["training"]["num_steps"]} steps per episode')
 
+    agent = QAgent(viewer, config['agent'])
 
-    agent = QAgent(viewer, memory_size=MEMORY_SIZE)
+    # create learning visualizer
+    _, parameters = viewer.cam.get_settings()
+    visualizer = LearningVisualizer(parameters)
 
-    state, reward = viewer.cam.get_frame()
-    viewer.ui.show_frame(state, reward)
+    state, features = viewer.cam.get_frame()
+    viewer.ui.show_frame(state, features)
 
-    train_start_time = time()
-    for i in tqdm(range(int(num_of_sequences)), desc='Training', unit='batch'):
+    for i_episode in tqdm(range(int(config['training']['num_episodes'])), desc='Training', unit='sequences', position=0):
 
+        for i_sequence in tqdm(range(int(config['training']['num_steps'])), desc='Sequence', unit='steps', position=1):
 
-        action = agent.select_settings(state)
-        viewer.cam.set_settings(action)
-        viewer.ui.set_settings(action)
+            # epsilon decay
+            # eps =   config['training']['epsilon_end'] + \
+            #         (config['training']['epsilon_start'] - config['training']['epsilon_end']) * \
+            #         np.exp(-1. * i_steps / config['training']['epsilon_decay'])
+            
+            eps = max(config['training']['epsilon_end'], config['training']['epsilon_start'] * (config['training']['epsilon_decay'] ** i_episode))
 
-        next_state, reward = viewer.cam.get_frame()
-        viewer.ui.show_frame(state, reward)
+            # select action and update UI
+            action = agent.select_settings(state, epsilon=eps)
+            viewer.cam.set_settings(action)
+            viewer.ui.set_settings(action)
 
-        agent.add_to_memory(state, action, next_state, len(reward))
-        agent.learn(learning_rate = LEARNING_RATE)
+            # observe the next state and update UI
+            for i in range(10):
+                next_state, next_features = viewer.cam.get_frame()
+            viewer.ui.show_frame(next_state, next_features)
 
-        state = next_state
+            # update memory
+            reward = len(next_features) - len(features)
+            agent.add_to_memory(state, action, next_state, reward)
 
-        if i % BATCHES_TO_QTARGET_SWITCH == 0:
-            # agent.switch_q_target()
-            pass
+            # optimize the model
+            agent.learn(batch_size = config["training"]["batch_size"])
 
-        if i % 1000 == 0 and i > 0:
-            agent.save(savedir)
+            # update state
+            state = next_state
+            features = next_features
 
-        cv2.waitKey(1)
+            # draw the frame
+            cv2.waitKey(1)
 
-def run(viewer: CameraViewer, model_path):
+        # update visualizer
+        visualizer.update(action, len(features), eps)
+        logging.info(f'Episode {i_episode} completed')
+
+        if i_episode % config['training']['chkpt_interval'] == 0 and i_episode > 0 and config['_log_dir'] is not None:
+            name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_chkpt_{i_episode}.pth")
+            logging.info(f'Saving checkpoint to {name}')
+            agent.save(name)
+            visualizer.save(name.replace('.pth', '.png'))
+
+def run(viewer: CameraViewer, agent_config:dict):
     """ Run the agent 
     """
-    if model_path is None:
+
+    if agent_config['type'] == 'HumanAgent':
         agent = HumanAgent(viewer)
+    elif agent_config['type'] == 'QAgent':
+        agent = QAgent(viewer, config['agent'])
+        
+        if agent_config['checkpoint'] is not None:
+            agent.restore(agent_config['checkpoint'])
     else:
-        agent = QAgent(viewer, memory_size=MEMORY_SIZE)
-        # agent.restore(model_path)
+        raise ValueError(f'Unknown agent type {agent_config["type"]}')
 
     # run the agent
     viewer.run(agent)
 
     pass
 
-def main(args):
+def main(args, config):
 
-    # add main logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # create log name containing of datetime followed by the experiment name
+    if config['logging']['log_dir'] is None:
+        log_dir = None
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    else:
+        log_dir = os.path.join(config['logging']['log_dir'], f"{datetime.now().strftime('%y%m%d_%H%M%S')}_{config['experiment_name']}")
+        os.makedirs(log_dir, exist_ok=True)
+        logging.basicConfig(filename=os.path.join(log_dir, "log.txt"), level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        # serialize config to log folder
+        save_config(config, os.path.join(log_dir, f"config.yaml"))
+    config["_log_dir"] = log_dir
+
+    # log git commit short hash
+    repo = git.Repo(search_parent_directories=True)
+    commit = repo.head.object.hexsha
+    logging.info(f'Training repository commit: {commit}')
 
     # try:
-    viewer = CameraViewer(args.camera)
+    viewer = CameraViewer(config['environment'])
 
     if args.train:
-        train(viewer, num_of_sequences=100)
+        train(viewer, config)
 
     if args.run:
-        run(viewer, args.model)
+        run(viewer, config['agent'])
 
 
     # except Exception as e:
@@ -88,10 +222,10 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Camera Viewer')
-    parser.add_argument('-c', '--camera', type=int, help='Camera index')
+    parser.add_argument('-c', '--config', type=str, help='Config file')
     parser.add_argument('-t', '--train', action='store_true', help='Train camera settings controller')
     parser.add_argument('-r', '--run', action='store_true', help='Run camera settings controller')
-    parser.add_argument('-m', '--model', type=str, help='Model path')
     args = parser.parse_args()
 
-    main(args)
+    config = load_config(args.config)
+    main(args, config)

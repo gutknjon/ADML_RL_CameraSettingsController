@@ -1,0 +1,34 @@
+experiment_name: default_experiment
+
+logging:
+  log_dir: ./logs
+  tensorboard: true
+
+training:
+  chkpt_interval: 25
+  num_episodes: 500
+  num_steps: 10
+  save_model_interval: 50
+  target_update_frequency: 1000
+  batch_size: 16
+
+  epsilon_decay: 0.995
+  epsilon_end: 0.01
+  epsilon_start: 1.0
+
+environment:
+  camera: 0
+  render: true
+  parameters:
+    - "CAP_PROP_BRIGHTNESS"
+    - "CAP_PROP_CONTRAST"
+    - "CAP_PROP_SATURATION"
+    - "CAP_PROP_EXPOSURE"
+
+agent:
+  gamma: 0.99
+  memory_size: 1000
+  learning_rate: 0.001
+
+  type: QAgent
+  checkpoint: null

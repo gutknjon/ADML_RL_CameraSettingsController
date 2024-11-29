@@ -164,11 +164,7 @@ def train(viewer: CameraViewer, config:dict):
             viewer.ui.set_settings(action)
 
             # observe the next state and update UI
-            tmp = []
-            for i in range(5):
-                next_state, next_features = viewer.cam.get_frame()
-                tmp.append(len(next_features))
-            logging.info(f"Nr. Features: mean={np.mean(tmp):.2f}, std={np.std(tmp):.2f}, min={np.min(tmp)}, max={np.max(tmp)}")
+            next_state, next_features = viewer.cam.get_frame()
             viewer.ui.show_frame(next_state, next_features)
 
             # update memory

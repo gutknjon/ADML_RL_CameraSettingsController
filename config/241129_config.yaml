@@ -1,6 +1,11 @@
-experiment_name: default_experiment
+
 
 logging:
+  experiment_name:  default_experiment
+  tags: 
+    - "Lenna"
+    - "ActionSpace3"
+    
   log_dir: ./logs
   tensorboard: true
 
@@ -17,13 +22,13 @@ training:
   epsilon_start: 1.0
 
 environment:
-  camera: 0
+  camera: 0 
   render: true
   parameters:
     - "CAP_PROP_BRIGHTNESS"
     - "CAP_PROP_CONTRAST"
     - "CAP_PROP_SATURATION"
-    - "CAP_PROP_EXPOSURE"
+    # - "CAP_PROP_EXPOSURE"
 
 agent:
   gamma: 0.99
@@ -31,4 +36,4 @@ agent:
   learning_rate: 0.001
 
   type: QAgent
-  checkpoint: null
+  checkpoint: null #"logs/241129_214604_default_experiment/checkpoints/241129_214604_default_experiment_final.pth"

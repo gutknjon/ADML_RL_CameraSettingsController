@@ -41,6 +41,10 @@ class Camera:
             self.logger.error(f'Failed to open camera {self.camera_idx}')
             raise Exception(f'Failed to open camera {self.camera_idx}')
 
+        # set camera resolution to 640x480
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
         # get camera properties
         self.properties = self.get_camera_properties(self.cap, parameters)
         self.logger.info(f'Camera properties: \r\n{self}')

@@ -9,6 +9,7 @@ import cv2
 import os
 import subprocess
 from datetime import datetime
+import mlflow
 
 import matplotlib.pyplot as plt
 
@@ -151,54 +152,69 @@ def train(viewer: CameraViewer, config:dict):
     state, features = viewer.cam.get_frame()
     viewer.ui.show_frame(state, features)
 
-    for i_episode in tqdm(range(int(config['training']['num_episodes'])), desc='Training', unit='sequences', position=0):
+    # set up tracking
+    mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
+    mlflow.set_experiment(config['logging']['experiment_name'])
+    with mlflow.start_run():
 
-        for i_sequence in tqdm(range(int(config['training']['num_steps'])), desc='Sequence', unit='steps', position=1):
+        # log parameters
+        mlflow.log_params(config)
+        mlflow.set_tag(*config['logging']['tags'])
 
-            # epsilon decay
-            eps = max(config['training']['epsilon_end'], config['training']['epsilon_start'] * (config['training']['epsilon_decay'] ** i_episode))
+        for i_episode in tqdm(range(int(config['training']['num_episodes'])), desc='Training', unit='sequences', position=0):
 
-            # select action and update UI
-            action = agent.select_settings(state = state, epsilon=eps)
-            viewer.cam.set_settings(action)
-            viewer.ui.set_settings(action)
+            for i_sequence in tqdm(range(int(config['training']['num_steps'])), desc='Sequence', unit='steps', position=1):
 
-            # observe the next state and update UI
-            next_state, next_features = viewer.cam.get_frame()
-            viewer.ui.show_frame(next_state, next_features)
+                # epsilon decay
+                eps = max(config['training']['epsilon_end'], config['training']['epsilon_start'] * (config['training']['epsilon_decay'] ** i_episode))
 
-            # update memory
-            reward = len(next_features) - len(features)
-            agent.add_to_memory(state = state, action = action, next_state = next_state, reward = reward)
+                # select action and update UI
+                action = agent.select_settings(state = state, epsilon=eps)
+                viewer.cam.set_settings(action)
+                viewer.ui.set_settings(action)
 
-            # optimize the model
-            agent.learn(batch_size = config["training"]["batch_size"])
+                # observe the next state and update UI
+                next_state, next_features = viewer.cam.get_frame()
+                viewer.ui.show_frame(next_state, next_features)
 
-            # update state
-            state = next_state
-            features = next_features
+                # update memory
+                reward = len(next_features) - len(features)
+                agent.add_to_memory(state = state, action = action, next_state = next_state, reward = reward)
 
-            # draw the frame
-            cv2.waitKey(1)
+                # optimize the model
+                agent.learn(batch_size = config["training"]["batch_size"])
 
-        # update visualizer
-        visualizer.update(action, len(features), eps)
-        logging.info(f'Episode {i_episode} completed')
+                # update state
+                state = next_state
+                features = next_features
 
-        # save checkpoint
-        if i_episode % config['training']['chkpt_interval'] == 0 and i_episode > 0 and config['_log_dir'] is not None:
-            name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_chkpt_{i_episode}.pth")
-            logging.info(f'Saving checkpoint to {name}')
-            agent.save(name)
-            visualizer.save(name.replace('.pth', '.png'))
+                # draw the frame
+                cv2.waitKey(1)
 
-    logging.info('Training completed')
+            # log metrics
+            mlflow.log_metric('reward', reward, step=i_episode)
+            mlflow.log_metric('epsilon', eps, step=i_episode)
+            for i, p in enumerate(parameters):
+                mlflow.log_metric(p, action[i], step=i_episode)
 
-    # save final checkpoint
-    name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_final.pth")
-    logging.info(f'Saving checkpoint to {name}')
-    agent.save(name)
-    visualizer.save(name.replace('.pth', '.png'))
+            # update visualizer
+            visualizer.update(action, len(features), eps)
+            logging.info(f'Episode {i_episode} completed')
+
+            # save checkpoint
+            if i_episode % config['training']['chkpt_interval'] == 0 and i_episode > 0 and config['_log_dir'] is not None:
+                name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_chkpt_{i_episode}.pth")
+                logging.info(f'Saving checkpoint to {name}')
+                agent.save(name)
+                visualizer.save(name.replace('.pth', '.png'))
+
+        logging.info('Training completed')
+
+        # save final checkpoint
+        name = os.path.join(config['_log_dir'], 'checkpoints', f"{os.path.basename(config['_log_dir'])}_final.pth")
+        logging.info(f'Saving checkpoint to {name}')
+        agent.save(name)
+        visualizer.save(name.replace('.pth', '.png'))
 
 def run(viewer: CameraViewer, agent_config:dict):
     """ Run the agent 
@@ -226,7 +242,7 @@ def main(args, config):
         log_dir = None
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     else:
-        log_dir = os.path.join(config['logging']['log_dir'], f"{datetime.now().strftime('%y%m%d_%H%M%S')}_{config['experiment_name']}")
+        log_dir = os.path.join(config['logging']['log_dir'], f"{datetime.now().strftime('%y%m%d_%H%M%S')}_{config['logging']['experiment_name']}")
         os.makedirs(log_dir, exist_ok=True)
         logging.basicConfig(filename=os.path.join(log_dir, "log.txt"), level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 

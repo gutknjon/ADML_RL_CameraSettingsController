@@ -2,10 +2,11 @@ import yaml
 
 # Define default configuration values
 DEFAULT_CONFIG = {
-    "experiment_name": "default_experiment",
     "logging": {
+        "experiment_name": "default_experiment",
         "log_dir": None,
         "tensorboard": True,
+        "tags": ["default"],
     },
     "training": {
         "chkpt_interval": 10,

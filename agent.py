@@ -1,11 +1,11 @@
-import random
+import os
+import logging
+from abc import abstractmethod
+
 from dqn import DeepQNetworkModel
 from camera_viewer import CameraViewer
 from memory_buffers import ReplayMemory
-import os
-import torch
-import logging
-from abc import abstractmethod
+from config import AgentConfig
 
 class BaseAgent:
     """
@@ -55,7 +55,7 @@ class HumanAgent(BaseAgent):
 
 class QAgent(BaseAgent):
     """ QAgent """
-    def __init__(self, camera_viewer: CameraViewer, **kwargs):
+    def __init__(self, camera_viewer: CameraViewer, config: AgentConfig):
         super().__init__(camera_viewer)
         self.name = self.__class__.__name__
 
@@ -65,9 +65,9 @@ class QAgent(BaseAgent):
 
         self.dqn = DeepQNetworkModel(input_size = frame.shape, 
                                      output_size = len(self.valid_actions), 
-                                     learning_rate=kwargs['agent_config']['learning_rate'],
-                                     gamma=kwargs['agent_config']['gamma'],
-                                     memory = ReplayMemory(kwargs['agent_config']['memory_size']))
+                                     learning_rate=config.learning_rate,
+                                     gamma=config.gamma,
+                                     memory = ReplayMemory(config.memory_size))
 
     def select_settings(self, **kwargs):
         if "epsilon" in kwargs:

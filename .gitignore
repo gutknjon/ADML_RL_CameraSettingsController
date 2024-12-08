@@ -3,3 +3,4 @@ __pycache__
 dbg
 logs
 mlruns
+mlartifacts

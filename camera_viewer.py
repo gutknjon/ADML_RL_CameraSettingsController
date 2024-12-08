@@ -2,7 +2,7 @@ import cv2
 from argparse import ArgumentParser
 from dataclasses import dataclass
 import logging
-from config import load_config
+from config import Config, EnvironmentConfig
 
 class Camera:
 
@@ -279,17 +279,17 @@ class UserInterface:
 
 class CameraViewer:
 
-    def __init__(self, config: dict):
+    def __init__(self, config: EnvironmentConfig):
         # initialize logger
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info('Initializing CameraViewer')
 
         # create camera object
-        self.cam = Camera(config['camera'], config['parameters'])
+        self.cam = Camera(config.camera, config.parameters)
 
         # create user interface
         settings, names = self.cam.get_settings()
-        self.ui = UserInterface(settings, names, config['render'])
+        self.ui = UserInterface(settings, names, config.render)
 
         pass
 
@@ -336,11 +336,10 @@ class CameraViewer:
                 break
         pass
 
-def main(args, config):
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
+def main(args, config: Config):
+ 
     try:
-        viewer = CameraViewer(config['environment'])
+        viewer = CameraViewer(config.environment)
         viewer.run()
 
     except Exception as e:
@@ -359,8 +358,11 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config', type=str, help='Config file')
     args = parser.parse_args()
 
+    # setup logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     # load config
-    config = load_config(args.config)
+    config = Config(args.config)
 
     # run main
     main(args, config)

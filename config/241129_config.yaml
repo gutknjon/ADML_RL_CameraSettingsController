@@ -1,16 +1,17 @@
 
 
 logging:
-  experiment_name:  default_experiment
+  experiment_name:  Default
+  run_name: null
   tags: 
     - "Lenna"
     - "ActionSpace3"
     
   log_dir: ./logs
   tensorboard: true
+  asdf: 1
 
 training:
-  chkpt_interval: 25
   num_episodes: 500
   num_steps: 10
   save_model_interval: 50
@@ -22,7 +23,7 @@ training:
   epsilon_start: 1.0
 
 environment:
-  camera: 0 
+  camera: 2 
   render: true
   parameters:
     - "CAP_PROP_BRIGHTNESS"

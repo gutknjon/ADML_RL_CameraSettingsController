@@ -7,12 +7,9 @@ import subprocess
 from datetime import datetime
 import mlflow
 
-import matplotlib.pyplot as plt
-
-from agent import QAgent, HumanAgent
-from camera_viewer import CameraViewer
-from config import Config
-
+from src.agent import QAgent, HumanAgent
+from src.camera_viewer import CameraViewer
+from src.config import Config
 
 def get_short_sha(repo_path="."):
     """
@@ -84,7 +81,7 @@ def train(config:Config):
     viewer.ui.show_frame(state, features)
 
     # set up tracking
-    mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
+    mlflow.set_tracking_uri(uri="http://127.0.0.1:5000")
     mlflow.set_experiment(config.logging.experiment_name)
     with mlflow.start_run(run_name=run_name):
 

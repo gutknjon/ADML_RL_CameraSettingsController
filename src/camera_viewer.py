@@ -2,7 +2,7 @@ import cv2
 from argparse import ArgumentParser
 from dataclasses import dataclass
 import logging
-from config import Config, EnvironmentConfig
+from src.config import Config, EnvironmentConfig
 
 class Camera:
 

@@ -2,8 +2,12 @@ import random
 import logging
 import numpy as np
 import torch
+import torchvision.models as models
+import torchvision.transforms as transforms
+from torchvision.models import MobileNet_V3_Small_Weights
+from torch import nn
 
-from memory_buffers import Transition, ReplayMemory
+from src.memory_buffers import Transition, ReplayMemory
 
 class DeepQNetworkModel:
 
@@ -114,7 +118,7 @@ class DeepQNetworkModel:
         """
         eps = epsilon if epsilon is not None else self.default_epsilon
         rnd = random.random()
-        if rnd < eps: # or len(self.memory) < self.min_samples_for_predictions:
+        if rnd < eps: 
             # create output_size random float values in the rang [0, 1]
             action = [random.random() for _ in range(self.output_size)]
             logging.debug("Choosing a random action: %s [Epsilon = %s]", action, eps)
@@ -160,21 +164,24 @@ class QNetwork(torch.torch.nn.Module):
     """
     def __init__(self, input_size, output_size):
         super().__init__()
-        # create mobile net v2 model
-        self.mobilenet = torch.hub.load('pytorch/vision:v0.6.0', 'mobilenet_v2', pretrained=True)
+            
+        # Load the MobileNetV3 Small model with pretrained weights
+        self.mobilenet = models.mobilenet_v3_small(weights=MobileNet_V3_Small_Weights.IMAGENET1K_V1)
 
-        # freeze all layers
+        # Freeze all layers (no training on pretrained weights)
         for param in self.mobilenet.parameters():
             param.requires_grad = False
 
-        # replace the last layer with a new layer with output_size outputs
-        self.mobilenet.classifier[1] = torch.torch.nn.Linear(1280, output_size)
+        # Replace the last classifier layer with a new one for your custom output size
+        self.mobilenet.classifier[3] = nn.Linear(self.mobilenet.classifier[3].in_features, output_size)
 
-        # normalize output
-        self.sigmoid = torch.torch.nn.Sigmoid()
+        # Normalize the output using Sigmoid activation (for binary classification, adjust if necessary)
+        self.sigmoid = nn.Sigmoid()
 
-        # combine all layers
-        self.model = torch.torch.nn.Sequential(self.mobilenet, self.sigmoid)
+        # Combine the layers into a final model
+        self.model = nn.Sequential(
+            self.mobilenet, 
+            self.sigmoid)
 
     def forward(self, x):
         """ Forward pass

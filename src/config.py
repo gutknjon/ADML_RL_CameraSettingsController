@@ -11,7 +11,6 @@ class LoggingConfig:
     tensorboard: bool = True
     tags: List[str] = field(default_factory=lambda: ["default"])
 
-
 @dataclass
 class TrainingConfig:
     num_episodes: int = 200
@@ -34,7 +33,6 @@ class EnvironmentConfig:
         "CAP_PROP_EXPOSURE",
     ])
 
-
 @dataclass
 class AgentConfig:
     gamma: float = 0.99
@@ -42,7 +40,6 @@ class AgentConfig:
     type: str = "QAgent"
     checkpoint: Optional[str] = None
     memory_size: int = 10000
-
 
 class Config:
     logging: LoggingConfig = field(default_factory=LoggingConfig)

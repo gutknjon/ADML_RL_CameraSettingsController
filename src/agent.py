@@ -2,10 +2,10 @@ import os
 import logging
 from abc import abstractmethod
 
-from dqn import DeepQNetworkModel
-from camera_viewer import CameraViewer
-from memory_buffers import ReplayMemory
-from config import AgentConfig
+from src.dqn import DeepQNetworkModel
+from src.camera_viewer import CameraViewer
+from src.memory_buffers import ReplayMemory
+from src.config import AgentConfig
 
 class BaseAgent:
     """

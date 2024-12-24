@@ -8,7 +8,7 @@ from datetime import datetime
 import mlflow
 
 from src.agent import QAgent, HumanAgent
-from src.camera_viewer import CameraViewer
+from src.camera_viewer import CameraViewer, Camera
 from src.config import Config
 
 def get_short_sha(repo_path="."):
@@ -47,7 +47,6 @@ def create_agent(config:dict, viewer:CameraViewer):
         raise ValueError(f'Unknown agent type {config.agent.type}')
     
     return agent
-
 
 def train(config:Config):
     """ Train the agent 
@@ -109,7 +108,7 @@ def train(config:Config):
                 viewer.ui.show_frame(next_state, next_features)
 
                 # update memory
-                reward = len(next_features)
+                reward, kp_len, kp_resp = Camera.calculate_reward(next_features)
                 agent.add_to_memory(state = state, action = action, next_state = next_state, reward = reward)
 
                 # optimize the model
@@ -126,6 +125,8 @@ def train(config:Config):
 
             # log metrics
             mlflow.log_metric('reward', reward, step=i_episode)
+            mlflow.log_metric('keypoints_len', kp_len, step=i_episode)
+            mlflow.log_metric('keypoints_resp', kp_resp, step=i_episode)
             mlflow.log_metric('epsilon', eps, step=i_episode)
             for i, p in enumerate(cam_parameters):
                 mlflow.log_metric(p, action[i], step=i_episode)

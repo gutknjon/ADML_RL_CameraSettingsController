@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from argparse import ArgumentParser
 from dataclasses import dataclass
 import logging
@@ -187,6 +188,34 @@ class Camera:
                 self.logger.error(f'Failed to open camera {camera_idx}')
                 raise Exception(f'Failed to open camera {camera_idx}')
         return camera_idx
+
+    @staticmethod
+    def calculate_reward(keypoints, N_kp_max=500, alpha=0.2):
+        '''Calculate reward for the given SIFT keypoints
+        
+        Args:
+            keypoints (list): List of features
+            N_kp_max (int): Maximum number of keypoints to normalize to
+            alpha (float): Weight for the number of keypoints
+        
+        Returns:
+            reward (float): Reward value
+            N_keypoints (int): Number of keypoints
+            mean_response (float): Mean response value
+        '''
+
+        # Number of keypoints
+        N_keypoints = len(keypoints)
+        
+        if N_keypoints == 0:
+            return 0  # No keypoints, so quality is zero
+        
+        # Extracting responses and sizes
+        mean_response = np.mean([kp.response for kp in keypoints])
+        
+        # Compute the overall quality factor
+        reward = alpha * (N_keypoints / N_kp_max) + (1 - alpha) * mean_response
+        return reward, N_keypoints, mean_response
 
 class UserInterface:
     window_name = 'Camera Viewer'

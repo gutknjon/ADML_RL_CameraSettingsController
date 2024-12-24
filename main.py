@@ -112,7 +112,7 @@ def train(config:Config):
                 viewer.ui.show_frame(next_state, next_features)
 
                 # update memory
-                reward = len(next_features) - len(features)
+                reward = len(next_features)
                 agent.add_to_memory(state = state, action = action, next_state = next_state, reward = reward)
 
                 # optimize the model
@@ -137,6 +137,7 @@ def train(config:Config):
         name = f"{os.path.basename(log_dir)}_final.pth"
         agent.save(os.path.join(log_dir, name))
         mlflow.log_artifact(local_path=os.path.join(log_dir, name))
+        mlflow.log_artifact(local_path=config.path)
 
         # flush logging
         logging.info('Training completed')

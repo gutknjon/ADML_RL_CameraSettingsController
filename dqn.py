@@ -30,6 +30,7 @@ class DeepQNetworkModel:
         self.learning_rate = learning_rate
         self.memory = memory
         self.gamma = gamma
+        self.tau = 0.001
 
         if torch.cuda.is_available():
             self.device = 'cuda'
@@ -58,9 +59,6 @@ class DeepQNetworkModel:
             return
         
         transitions = self.memory.sample(batch_size)
-        # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-        # detailed explanation). This converts batch-array of Transitions
-        # to Transition of batch-arrays.
         batch = Transition(*zip(*transitions))
 
         # Compute a mask of non-final states and concatenate the batch elements
@@ -96,6 +94,14 @@ class DeepQNetworkModel:
         # In-place gradient clipping
         torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), 100)
         self.optimizer.step()
+
+        # Soft update of the target network's weights
+        # θ′ ← τ θ + (1 −τ )θ′
+        target_net_state_dict = self.target_net.state_dict()
+        policy_net_state_dict = self.policy_net.state_dict()
+        for key in policy_net_state_dict:
+            target_net_state_dict[key] = policy_net_state_dict[key]*self.tau + target_net_state_dict[key]*(1-self.tau)
+        self.target_net.load_state_dict(target_net_state_dict)
 
         return None
 

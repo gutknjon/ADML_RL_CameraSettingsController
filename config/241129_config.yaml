@@ -9,11 +9,10 @@ logging:
     
   log_dir: ./logs
   tensorboard: true
-  asdf: 1
 
 training:
   num_episodes: 500
-  num_steps: 10
+  num_steps: 100
   save_model_interval: 50
   target_update_frequency: 1000
   batch_size: 16

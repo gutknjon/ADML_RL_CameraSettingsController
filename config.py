@@ -49,7 +49,7 @@ class Config:
     training: TrainingConfig = field(default_factory=TrainingConfig)
     environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
-
+    path: str = None
     def __init__(self, config_file):
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -61,6 +61,7 @@ class Config:
 
         if config_file is None:
             return
+        self.path = config_file
 
         # load config from file
         with open(config_file, "r") as f:

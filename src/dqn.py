@@ -61,46 +61,41 @@ class DeepQNetworkModel:
 
         if len(self.memory) < batch_size:
             return
-        
+
         transitions = self.memory.sample(batch_size)
         batch = Transition(*zip(*transitions))
 
         # Compute a mask of non-final states and concatenate the batch elements
-        # (a final state would've been the one after which simulation ended)
         state_batch = torch.cat(batch.state).float().to(self.device)
         action_batch = torch.cat(batch.action).float().to(self.device)
         reward_batch = torch.cat(batch.reward).float().to(self.device)
         next_state_batch = torch.cat(batch.next_state).float().to(self.device)
 
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-        # columns of actions taken. These are the actions which would've been taken
-        # for each batch state according to policy_net
-        state_action_values = self.policy_net(state_batch) #.gather(1, action_batch)
+        # actions taken.
+        state_action_values = self.policy_net(state_batch)
 
-        # Compute V(s_{t+1}) for all next states.
-        # Expected values of actions for non_final_next_states are computed based
-        # on the "older" target_net; selecting their best reward with max(1).values
-        # This is merged based on the mask, such that we'll have either the expected
-        # state value or 0 in case the state was final.
+        # Compute V(s_{t+1}) for all next states using target_net
         next_state_values = torch.zeros(batch_size, device=self.device)
         with torch.no_grad():
             next_state_values = self.target_net(next_state_batch)
+
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
-        # Compute Huber loss
-        criterion = torch.nn.SmoothL1Loss()
+        # Calculate the loss
+        criterion = torch.nn.MSELoss()
         loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
 
         # Optimize the model
         self.optimizer.zero_grad()
         loss.backward()
+
         # In-place gradient clipping
         torch.nn.utils.clip_grad_value_(self.policy_net.parameters(), 100)
         self.optimizer.step()
 
         # Soft update of the target network's weights
-        # θ′ ← τ θ + (1 −τ )θ′
         target_net_state_dict = self.target_net.state_dict()
         policy_net_state_dict = self.policy_net.state_dict()
         for key in policy_net_state_dict:

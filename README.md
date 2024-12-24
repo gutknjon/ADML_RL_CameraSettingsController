@@ -35,7 +35,7 @@ This repository contains the implementation of a Camera Settings Controller usin
 | `README.md` |                 | Project overview and instructions. |
 
 ## RL Setup
-![Reinforcement Learning Setup](pitch\241206_pitch_cas\RL_setup.png)
+![Reinforcement Learning Setup](pitch/241206_pitch_cas/RL_setup.png)
 
 ### Agent
 The RL agent is responsible for adjusting the camera settings to achieve optimal image quality. It learns from interactions with the environment.
@@ -87,7 +87,7 @@ This class creates an OpenCV window to visualize the camera frame. The camera pa
 - `CameraViewer`  
 This class combines the `Camera` and `UserInterface` class by instancating them. The run method allows to run the camera viewer. The actions are taken by a given agent or by a human user using the userinterface.
 
-![Camera Viewer](pitch\241206_pitch_cas\RL_CameraViewer.png)
+![Camera Viewer](pitch/241206_pitch_cas/RL_CameraViewer.png)
 
 ### Transitions
 - **Action**  

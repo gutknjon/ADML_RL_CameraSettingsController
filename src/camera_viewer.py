@@ -208,7 +208,7 @@ class Camera:
         N_keypoints = len(keypoints)
         
         if N_keypoints == 0:
-            return 0  # No keypoints, so quality is zero
+            return 0, 0, 0  # No keypoints, so quality is zero
         
         # Extracting responses and sizes
         mean_response = np.mean([kp.response for kp in keypoints])

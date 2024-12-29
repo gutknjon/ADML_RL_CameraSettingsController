@@ -102,7 +102,15 @@ The action space is defined by the selected camera parameters where each paramet
 - **State**  
 The state of the enironment is given by the camera RGB image in VGA resolution
 - **Reward**  
-The reward is defined by the number of SIFT features found in the image.
+    The reward is calculated from the SIFT features of the state image. Next to the quantity of the SIFT features, also its quality is used to calculate the reward. From the SIFT features, following values are retrieved:
+    $$ N_{kp} : \text{Number of keypoints} $$
+    $$ r_{i} : \text{Response value of keypoint i} $$
+
+    Given these values, the reward can be calculated using this function:
+    $$ N_{kp\_max} = 500 $$ 
+    $$ \alpha = 0.3 $$
+    $$ reward =  \frac{\alpha N_{kp}}{N_{kp\_max}} + \frac{(1-\alpha)}{N_{kp}}\sum_{i=0}^{N_{kp}-1} r_{i}$$
+
 
 ## Results
 

@@ -6,6 +6,7 @@ import os
 import subprocess
 from datetime import datetime
 import mlflow
+import numpy as np
 
 from src.agent import QAgent, HumanAgent
 from src.camera_viewer import CameraViewer, Camera
@@ -158,6 +159,105 @@ def run(config:dict):
 
     pass
 
+def grid_search(config:dict):
+    """ Run grid search for camera parameters
+    """
+    path_results = 'grid_results.npy'
+
+    if not os.path.exists(path_results):
+        # create viewer
+        viewer = CameraViewer(config.environment)
+
+        # create grid
+        _, parameters = viewer.cam.get_settings()
+        N = 21  # number of grid points
+        M = 10  # number of samples per grid point to average
+
+        # create N^3 grid filled with nan
+        kp_len = np.full((N, N, N), np.nan, dtype=int)
+        kp_resp = np.full((N, N, N), np.nan, dtype=np.float32)
+        p0_range = np.linspace(0, 1, N)
+        p1_range = np.linspace(0, 1, N)
+        p2_range = np.linspace(0, 1, N)
+
+        for i0 in tqdm(range(N), desc=parameters[0], position=0, leave=False):
+            for i1 in tqdm(range(N), desc=parameters[1], position=1, leave=False):
+                for i2 in tqdm(range(N), desc=parameters[2], position=2, leave=False):
+                    viewer.cam.set_settings([p0_range[i0], p1_range[i1], p2_range[i2]])
+                    viewer.ui.set_settings([p0_range[i0], p1_range[i1], p2_range[i2]])
+
+                    tmp_kp_len = np.full(M, np.nan)
+                    tmp_kp_resp = np.full(M, np.nan)
+                    for i in range(M):
+                        frame, features = viewer.cam.get_frame()
+                        _, tmp_kp_len[i], tmp_kp_resp[i] = Camera.calculate_reward(features)
+                    viewer.ui.show_frame(frame, features)
+
+                    kp_len[i0, i1, i2] = np.nanmean(tmp_kp_len)
+                    kp_resp[i0, i1, i2] = np.nanmean(tmp_kp_resp)
+
+                    # Break the loop on 'q' key press
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+        # save results
+        grid_results = {
+            'kp_len': kp_len,
+            'kp_resp': kp_resp,
+            'p0_range': p0_range,
+            'p1_range': p1_range,
+            'p2_range': p2_range,
+            'p0': parameters[0],
+            'p1': parameters[1],
+            'p2': parameters[2]
+        }
+        np.save('grid_results.npy', grid_results)
+
+    else:
+        grid_results = np.load(path_results, allow_pickle=True).item()
+
+
+    # print max results
+    max_idx = np.unravel_index(np.nanargmax(grid_results['kp_len']), grid_results['kp_len'].shape)
+    print(f'Max keypoints length:')
+    print(f'Value: {grid_results["kp_len"][max_idx]}')
+    print(f'{grid_results["p0"]}: {grid_results["p0_range"][max_idx[0]]}')
+    print(f'{grid_results["p1"]}: {grid_results["p1_range"][max_idx[1]]}')
+    print(f'{grid_results["p2"]}: {grid_results["p2_range"][max_idx[2]]}')
+
+    max_idx = np.unravel_index(np.nanargmax(grid_results['kp_resp']), grid_results['kp_resp'].shape)
+    print(f'Max keypoints response:')
+    print(f'Value: {grid_results["kp_resp"][max_idx]}')
+    print(f'{grid_results["p0"]}: {grid_results["p0_range"][max_idx[0]]}')
+    print(f'{grid_results["p1"]}: {grid_results["p1_range"][max_idx[1]]}')
+    print(f'{grid_results["p2"]}: {grid_results["p2_range"][max_idx[2]]}')
+
+    # plot results
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    X, Y, Z = np.meshgrid(grid_results['p0_range'], grid_results['p1_range'], grid_results['p2_range'])
+    ax.scatter(X, Y, Z, c=grid_results['kp_len'], cmap='viridis')
+    ax.set_xlabel(grid_results['p0'])
+    ax.set_ylabel(grid_results['p1'])
+    ax.set_zlabel(grid_results['p2'])
+    ax.set_title('Keypoints length')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    X, Y, Z = np.meshgrid(grid_results['p0_range'], grid_results['p1_range'], grid_results['p2_range'])
+    ax.scatter(X, Y, Z, c=grid_results['kp_resp'], cmap='viridis')
+    ax.set_xlabel(grid_results['p0'])
+    ax.set_ylabel(grid_results['p1'])
+    ax.set_zlabel(grid_results['p2'])
+    ax.set_title('Keypoints response')
+
+    plt.show()
+
+    pass
+
 def main(args, config):
 
     # try:
@@ -166,6 +266,9 @@ def main(args, config):
 
     if args.run:
         run(config)
+
+    if args.grid_search:
+        grid_search(config)
 
     # except Exception as e:
     #     logging.error(e)
@@ -177,6 +280,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config', type=str, help='Config file')
     parser.add_argument('-t', '--train', action='store_true', help='Train camera settings controller')
     parser.add_argument('-r', '--run', action='store_true', help='Run camera settings controller')
+    parser.add_argument('-g', '--grid_search', action='store_true', help='Run grid search for camera parameters')
     args = parser.parse_args()
 
     # setup logging

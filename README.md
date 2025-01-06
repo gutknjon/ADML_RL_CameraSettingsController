@@ -4,7 +4,7 @@
 **Module**&nbsp;&nbsp;&nbsp;Reinforcement Learning  
 **Date**&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;December 24, 2024  
 
-This repository contains the implementation of a Camera Settings Controller using Reinforcement Learning (RL).
+This repository provides an implementation of a Camera Settings Controller utilizing Reinforcement Learning (RL).
 
 ## Overview
 
@@ -20,11 +20,16 @@ This repository contains the implementation of a Camera Settings Controller usin
     - [Action](#action)
     - [Reward](#reward)
 3. [Results](#results)
+    -[Grid Search](#grid-search)
+    -[Training Results](#training-results)
 4. [Getting Started](#getting-started)
 
 ### Repository Contents
 | Directory | File              | Description                                                   |
 |-----------|-------------------|---------------------------------------------------------------|
+| `.`       | `README.md`       | Project overview and instructions. |
+|           | `grid_results.npy`| Results of the grid search. |
+| `results` |        | Mlflow artifacts of selected trainng runs |
 | `config/` |                   | Collection of configuration files                             |
 | `src/`    | `agent.py`        | Implementation of the RL agent.                               |
 |           | `camera_viewer.py`| Implementation of the RL environment |
@@ -32,13 +37,14 @@ This repository contains the implementation of a Camera Settings Controller usin
 |           | `dqn.py`          | Implementation of the Deep Q-Networks                          |
 |           | `memory_buffers.py` | Implementation of the memory buffers used for training |
 | `pitch/241206_pitch_cas/`     | `ADML_RL_CameraSettingsController.pptx` | Slides of the pitch |
-| `README.md` |                 | Project overview and instructions. |
+
+
 
 ## RL Setup
 ![Reinforcement Learning Setup](pitch/241206_pitch_cas/RL_setup.png)
 
 ### Agent
-The RL agent is responsible for adjusting the camera settings to achieve optimal image quality. It learns from interactions with the environment.
+The RL agent adjusts the camera settings to achieve optimal image quality by learning through interactions with its environment.
 
 - **Deep Q-Network**  
 The DQN takes the `state` as input and creates the `action` as output. The Camera image needs to be downsampled from VGA (640x480 px) to 224x224 px. The structure of the network can be found following:
@@ -67,7 +73,7 @@ The DQN takes the `state` as input and creates the `action` as output. The Camer
     For the next states, the `target_net` is used to compute the Q-values, which are then used to calculate the expected future Q-values. These expected values are combined with the rewards using the discount factor `gamma`.
 
     4. **Calculate Loss**:  
-    The Huber loss (Smooth L1 loss) is calculated between the predicted Q-values (`state_action_values`) and the expected Q-values (`expected_state_action_values`).
+    The MSE Loss is calculated between the predicted Q-values (`state_action_values`) and the expected Q-values (`expected_state_action_values`).
 
     5. **Backpropagation and Optimization**:  
     The loss is backpropagated, and the gradients are clipped to prevent large updates. The model’s optimizer then updates the `policy_net`'s weights.
@@ -114,7 +120,25 @@ The state of the enironment is given by the camera RGB image in VGA resolution
 
 ## Results
 
-The RL agent successfully learns to adjust the camera settings to optimize image quality. The results are stored in the `results/` directory, including performance metrics and visualizations of the agent's performance over time.
+### Grid Search
+
+To estimate the optimal camera parameters, the action space $\R \in [0 .. 1]^3$ was systematically explored using a grid search with $21^3$ equispaced samples. Each point in the action space was captured 10 times, and the average values of the SIFT keypoint lengths and responses were recorded. These results are stored in the file `grid_results.npy`.
+
+![Grid Search Results 3D](pitch/grid_search_3D.png)
+The 3D plots of the grid search results revealed that the keypoints are primarily influenced by `CAP_PROP_BRIGHTNESS` and `CAP_PROP_CONTRAST`. In contrast, the parameter `CAP_PROP_SATURATION` appears to have minimal impact on the keypoints. The figure below illustrates a single layer of the grid search cube, where the `CAP_PROP_SATURATION` value is chosen based on the maximum keypoint length and response.
+
+![Grid Search Results 2D](pitch/grid_search_2D.png)
+
+The grid search results indicate that the optimal camera configuration should have approximately the following values:
+| Metric               | Value  | Brightness | Contrast | Saturation |
+|----------------------|--------|------------|----------|------------|
+| Keypoint Length      | 987    | 0.40       | 1.00     | 0.05       |
+| Keypoint Response    | 27.3e-3 | 0.45       | 1.00     | 0.20       |
+
+### Training Results
+Several training runs were conducted throughout the project. As shown in the first row of the figure, the exploration of camera parameters decreased as expected during training. However, the camera parameters consistently converged to their maximum values, which contradicts the expectations derived from the grid search results. The second row of the figure shows the keypoint lengths, keypoint responses, and the reward, which were the primary optimization targets.
+
+![Training Results](pitch/mlflow_model_metrics.png)
 
 ## Getting Started
 

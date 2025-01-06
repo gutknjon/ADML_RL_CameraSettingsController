@@ -1,0 +1,39 @@
+
+
+logging:
+  experiment_name:  Reward_LenResp
+  run_name: null
+  tags: 
+    - "Lenna"
+    - "ActionSpace3"
+    
+  log_dir: ./logs
+  tensorboard: true
+
+training:
+  num_episodes: 500
+  num_steps: 100
+  save_model_interval: 50
+  target_update_frequency: 1000
+  batch_size: 16
+
+  epsilon_decay: 0.995
+  epsilon_end: 0.01
+  epsilon_start: 1.0
+
+environment:
+  camera: 1 
+  render: true
+  parameters:
+    - "CAP_PROP_BRIGHTNESS"
+    - "CAP_PROP_CONTRAST"
+    - "CAP_PROP_SATURATION"
+    # - "CAP_PROP_EXPOSURE"
+
+agent:
+  gamma: 0.99
+  memory_size: 1000
+  learning_rate: 0.001
+
+  type: QAgent
+  checkpoint: null #"logs/241129_214604_default_experiment/checkpoints/241129_214604_default_experiment_final.pth"

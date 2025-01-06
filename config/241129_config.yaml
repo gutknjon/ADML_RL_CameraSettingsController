@@ -37,4 +37,4 @@ agent:
   learning_rate: 0.001
 
   type: QAgent
-  checkpoint: null #"logs/241129_214604_default_experiment/checkpoints/241129_214604_default_experiment_final.pth"
+  checkpoint: null #"mlartifacts\913919034547846327\1dfce4cfb0314d68be5e5e8d87c4d020\artifacts\20241230_072757_final.pth

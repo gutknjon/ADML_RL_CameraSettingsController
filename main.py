@@ -218,41 +218,64 @@ def grid_search(config:dict):
 
 
     # print max results
-    max_idx = np.unravel_index(np.nanargmax(grid_results['kp_len']), grid_results['kp_len'].shape)
+    max_idx_kp_len = np.unravel_index(np.nanargmax(grid_results['kp_len']), grid_results['kp_len'].shape)
     print(f'Max keypoints length:')
-    print(f'Value: {grid_results["kp_len"][max_idx]}')
-    print(f'{grid_results["p0"]}: {grid_results["p0_range"][max_idx[0]]}')
-    print(f'{grid_results["p1"]}: {grid_results["p1_range"][max_idx[1]]}')
-    print(f'{grid_results["p2"]}: {grid_results["p2_range"][max_idx[2]]}')
+    print(f'Value: {grid_results["kp_len"][max_idx_kp_len]}')
+    print(f'{grid_results["p0"]}: {grid_results["p0_range"][max_idx_kp_len[0]]}')
+    print(f'{grid_results["p1"]}: {grid_results["p1_range"][max_idx_kp_len[1]]}')
+    print(f'{grid_results["p2"]}: {grid_results["p2_range"][max_idx_kp_len[2]]}')
 
-    max_idx = np.unravel_index(np.nanargmax(grid_results['kp_resp']), grid_results['kp_resp'].shape)
+    max_idx_kp_resp = np.unravel_index(np.nanargmax(grid_results['kp_resp']), grid_results['kp_resp'].shape)
     print(f'Max keypoints response:')
-    print(f'Value: {grid_results["kp_resp"][max_idx]}')
-    print(f'{grid_results["p0"]}: {grid_results["p0_range"][max_idx[0]]}')
-    print(f'{grid_results["p1"]}: {grid_results["p1_range"][max_idx[1]]}')
-    print(f'{grid_results["p2"]}: {grid_results["p2_range"][max_idx[2]]}')
+    print(f'Value: {grid_results["kp_resp"][max_idx_kp_resp]}')
+    print(f'{grid_results["p0"]}: {grid_results["p0_range"][max_idx_kp_resp[0]]}')
+    print(f'{grid_results["p1"]}: {grid_results["p1_range"][max_idx_kp_resp[1]]}')
+    print(f'{grid_results["p2"]}: {grid_results["p2_range"][max_idx_kp_resp[2]]}')
 
     # plot results
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    X, Y, Z = np.meshgrid(grid_results['p0_range'], grid_results['p1_range'], grid_results['p2_range'])
-    ax.scatter(X, Y, Z, c=grid_results['kp_len'], cmap='viridis')
-    ax.set_xlabel(grid_results['p0'])
-    ax.set_ylabel(grid_results['p1'])
-    ax.set_zlabel(grid_results['p2'])
-    ax.set_title('Keypoints length')
+    fig = plt.figure(figsize=(12, 6))
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    # First subplot for Keypoints length
+    ax1 = fig.add_subplot(121, projection='3d')
     X, Y, Z = np.meshgrid(grid_results['p0_range'], grid_results['p1_range'], grid_results['p2_range'])
-    ax.scatter(X, Y, Z, c=grid_results['kp_resp'], cmap='viridis')
-    ax.set_xlabel(grid_results['p0'])
-    ax.set_ylabel(grid_results['p1'])
-    ax.set_zlabel(grid_results['p2'])
-    ax.set_title('Keypoints response')
+    ax1.scatter(X, Y, Z, c=grid_results['kp_len'], cmap='viridis')
+    ax1.set_xlabel(grid_results['p0'])
+    ax1.set_ylabel(grid_results['p1'])
+    ax1.set_zlabel(grid_results['p2'])
+    ax1.set_title('Keypoints length')
+
+    # Second subplot for Keypoints response
+    ax2 = fig.add_subplot(122, projection='3d')
+    ax2.scatter(X, Y, Z, c=grid_results['kp_resp'], cmap='viridis')
+    ax2.set_xlabel(grid_results['p0'])
+    ax2.set_ylabel(grid_results['p1'])
+    ax2.set_zlabel(grid_results['p2'])
+    ax2.set_title('Keypoints response')
+
+    plt.suptitle('3D Scatter Plots of Grid Search Results')
+
+    # create two plots which shows the mean and std value of grid_results['p2'] as a heatmap for grid_results['p0'] and grid_results['p1']
+    def show_heatmap(axis, data, title):
+        axis.imshow(data, cmap='viridis')
+        axis.set_title(title)
+        axis.set_xlabel(grid_results['p0'])
+        axis.set_xticks(np.arange(len(grid_results['p0_range']))[::2])
+        axis.set_xticklabels([f'{p:.2f}' for p in grid_results['p0_range'][::2]])
+        axis.set_ylabel(grid_results['p1'])
+        axis.set_yticks(np.arange(len(grid_results['p1_range']))[::2])
+        axis.set_yticklabels([f'{p:.2f}' for p in grid_results['p1_range'][::2]])
+    
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    show_heatmap(ax[0], grid_results['kp_len'][:,:,max_idx_kp_len[2]], 
+                 f'Keypoints length ({grid_results["p2"]} = {grid_results["p2_range"][max_idx_kp_len[2]]:.02f}')
+    show_heatmap(ax[1], grid_results['kp_resp'][:,:,max_idx_kp_resp[2]], 
+                 f'Keypoints response ({grid_results["p2"]} = {grid_results["p2_range"][max_idx_kp_resp[2]]:.02f}')
+    
+    fig.suptitle('Grid search results')
+    # fig.tight_layout()
 
     plt.show()
 

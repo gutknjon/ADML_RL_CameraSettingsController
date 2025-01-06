@@ -36,6 +36,7 @@ class EnvironmentConfig:
 @dataclass
 class AgentConfig:
     gamma: float = 0.99
+    tau: float = 0.001
     learning_rate: float = 0.001
     type: str = "QAgent"
     checkpoint: Optional[str] = None

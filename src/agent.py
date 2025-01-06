@@ -62,12 +62,12 @@ class QAgent(BaseAgent):
         self.valid_actions = self.cam_viewer.cam.get_valid_actions()
         frame, _ = self.cam_viewer.cam.get_frame()
 
-
-        self.dqn = DeepQNetworkModel(input_size = frame.shape, 
-                                     output_size = len(self.valid_actions), 
-                                     learning_rate=config.learning_rate,
-                                     gamma=config.gamma,
-                                     memory = ReplayMemory(config.memory_size))
+        self.dqn = DeepQNetworkModel(   input_size = frame.shape, 
+                                        output_size = len(self.valid_actions), 
+                                        learning_rate=config.learning_rate,
+                                        gamma=config.gamma,
+                                        tau=config.tau,
+                                        memory = ReplayMemory(config.memory_size))
 
     def select_settings(self, **kwargs):
         if "epsilon" in kwargs:

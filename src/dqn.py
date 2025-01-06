@@ -21,6 +21,7 @@ class DeepQNetworkModel:
                  output_size,
                  learning_rate = 0.001,
                  gamma = 0.99,
+                 tau = 0.001,
                  memory = ReplayMemory(1000)):
         """
         Create a new Deep Q Network model
@@ -34,7 +35,7 @@ class DeepQNetworkModel:
         self.learning_rate = learning_rate
         self.memory = memory
         self.gamma = gamma
-        self.tau = 0.001
+        self.tau = tau
 
         if torch.cuda.is_available():
             self.device = 'cuda'

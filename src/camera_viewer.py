@@ -272,8 +272,13 @@ class UserInterface:
         if frame is None:
             return
         frame = cv2.drawKeypoints(frame, features, None)
-        cv2.putText(frame, f'Number of features: {len(features)}', (10, 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_4)
+        reward, kp_len, kp_resp = Camera.calculate_reward(features)
+        cv2.putText(frame, f'kp_len:  {kp_len}', (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 1, cv2.LINE_AA)
+        cv2.putText(frame, f'kp_resp: {kp_resp:.03f}', (10, 50), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 1, cv2.LINE_AA)
+        cv2.putText(frame, f'reward:  {reward:.03f}', (10, 70), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 1, cv2.LINE_AA)
         cv2.imshow(self.window_name, frame)
         return
 

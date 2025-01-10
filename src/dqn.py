@@ -86,7 +86,7 @@ class DeepQNetworkModel:
 
         # Calculate the loss
         criterion = torch.nn.MSELoss()
-        loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+        loss = criterion(state_action_values, expected_state_action_values)
 
         # Optimize the model
         self.optimizer.zero_grad()

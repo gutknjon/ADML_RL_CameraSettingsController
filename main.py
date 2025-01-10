@@ -89,9 +89,7 @@ def train(config:Config):
         mlflow.log_params(config.__dict__)
         mlflow.set_tag(*config.logging.tags)
 
-        # log artifacts
-        # TODO: log artifacts
-
+        # training loop
         for i_episode in tqdm(range(int(config.training.num_episodes)), desc='Training', unit='sequences', position=0):
 
             for i_sequence in tqdm(range(int(config.training.num_steps)), desc='Sequence', unit='steps', position=1):
@@ -101,8 +99,12 @@ def train(config:Config):
 
                 # select action and update UI
                 action = agent.select_settings(state = state, epsilon=eps)
-                viewer.cam.set_settings(action)
                 viewer.ui.set_settings(action)
+                viewer.cam.set_settings(action)
+
+                # delay for camera to adjust
+                for _ in range(5):
+                    viewer.cam.get_frame()               
 
                 # observe the next state and update UI
                 next_state, next_features = viewer.cam.get_frame()
